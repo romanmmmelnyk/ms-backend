@@ -23,7 +23,8 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(7300);
-  console.log('🚀 Application is running on: http://localhost:7300');
+  const port = parseInt(process.env.PORT, 10) || 7300;
+  await app.listen(port);
+  console.log(`🚀 Application is running on: http://localhost:${port}`);
 }
 bootstrap();
