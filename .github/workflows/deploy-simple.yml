@@ -20,10 +20,11 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script: |
             cd ${{ secrets.APP_PATH }}
+            git config --global --add safe.directory ${{ secrets.APP_PATH }}
             git pull origin main
             npm ci
             npm run build
             npm run prisma:generate
-            npm run prisma:migrate:deploy
+            npx prisma migrate deploy
             pm2 restart ms-backend || pm2 start ecosystem.config.js
 
