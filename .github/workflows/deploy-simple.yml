@@ -20,11 +20,23 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script: |
             cd ${{ secrets.APP_PATH }}
+            
+            # Fix ownership and permissions
+            sudo chown -R $USER:$USER ${{ secrets.APP_PATH }}
+            
+            # Configure git
             git config --global --add safe.directory ${{ secrets.APP_PATH }}
+            
+            # Clean up old build artifacts
+            rm -rf node_modules dist .prisma
+            
+            # Pull and deploy
             git pull origin main
             npm ci
             npm run build
             npm run prisma:generate
             npx prisma migrate deploy
+            
+            # Restart application
             pm2 restart ms-backend || pm2 start ecosystem.config.js
 
