@@ -9,7 +9,7 @@ module.exports = {
     max_memory_restart: '1G',
     env: {
       NODE_ENV: 'production',
-      PORT: 3000
+      PORT: 7300
     },
     error_file: './logs/error.log',
     out_file: './logs/out.log',
