@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -23,8 +24,19 @@ async function bootstrap() {
     }),
   );
 
+  // Setup Swagger documentation
+  const config = new DocumentBuilder()
+    .setTitle('MS Backend API')
+    .setDescription('The MS Backend API documentation')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
   const port = parseInt(process.env.PORT, 10) || 7300;
   await app.listen(port);
   console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`📚 API Documentation available at: http://localhost:${port}/api/docs`);
 }
 bootstrap();

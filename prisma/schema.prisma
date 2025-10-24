@@ -10,7 +10,239 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Add your models here
+// ============================================================================
+// VALIDATION RULES & CONSTRAINTS
+// ============================================================================
+// 
+// Domain.name: Must validate DNS name regex
+//   Pattern: ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$
+//   Examples: example.com, sub.example.com, a.b.c.d.e
+//
+// Port.number: Must be integer between 1-65535
+//   Range: [1, 65535]
+//   Common ports: 80 (HTTP), 443 (HTTPS), 22 (SSH), 3306 (MySQL)
+//
+// paid_until & paidAt: Must be valid ISO8601 date format
+//   Format: YYYY-MM-DDTHH:mm:ss.sssZ
+//   Examples: 2024-12-31T23:59:59.000Z, 2024-01-01T00:00:00.000Z
+//
+// price_year: Must be decimal >= 0
+//   Range: [0, ∞)
+//   Precision: 10 digits total, 2 decimal places
+//   Examples: 0.00, 99.99, 1000.00
+//
+// analytics.config: Must not include plain secrets (store encrypted)
+//   Structure: { provider: string, cfg: object (encrypted), enabled: boolean }
+//   Security: All sensitive data in 'cfg' must be encrypted before storage
+//
+// SiteInfo.contacts: { phones: [str], emails: [str] }
+//   Structure: { phones: ["+1234567890", "+0987654321"], emails: ["a@b.com", "c@d.com"] }
+//
+// SiteInfo.meta: { fetched_by: str, fetched_at: ISO8601 }
+//   Structure: { fetched_by: "user_id_or_system", fetched_at: "2024-01-01T00:00:00.000Z" }
+//
+// ============================================================================
+
+// ============================================================================
+// CORE ENTITIES
+// ============================================================================
+
+model Site {
+  id               String   @id @default(cuid())
+  name             String
+  purpose          String
+  instanceId       String
+  primaryDomainId  String?
+  analytics        Json?    // { provider: string, cfg: object (encrypted), enabled: boolean }
+  status           String   @default("active") // active, inactive, suspended
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  instance         Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  primaryDomain    Domain?  @relation("SitePrimaryDomain", fields: [primaryDomainId], references: [id])
+  domains          Domain[] @relation("SiteDomains")
+  siteInfo         SiteInfo?
+
+  @@index([instanceId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Instance {
+  id           String   @id @default(cuid())
+  name         String
+  hostingId    String
+  ipAddress    String
+  portBindings Json?    // { portId: bindingConfig }
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  hosting      Hosting  @relation(fields: [hostingId], references: [id])
+  sites        Site[]
+  domains      Domain[]
+  ports        InstancePort[]
+
+  @@index([hostingId])
+  @@index([ipAddress])
+}
+
+model Domain {
+  id          String    @id @default(cuid())
+  name        String    @unique // Must validate DNS name regex: ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$
+  instanceId  String
+  provider    String
+  paidUntil   DateTime? // Must be valid ISO8601 date
+  priceYear   Decimal?  @db.Decimal(10, 2) // Must be >= 0
+  currency    String?   @default("USD")
+  autoRenew   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  instance    Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  sites       Site[]    @relation("SiteDomains")
+  primaryForSites Site[] @relation("SitePrimaryDomain")
+
+  @@index([instanceId])
+  @@index([provider])
+  @@index([paidUntil])
+}
+
+model Port {
+  id          String   @id @default(cuid())
+  number      Int      @unique // Must be integer 1-65535
+  categoryId  String
+  description String?
+
+  // Relations
+  category    PortCategory @relation(fields: [categoryId], references: [id])
+  instances   InstancePort[]
+
+  @@index([categoryId])
+}
+
+model PortCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+
+  // Relations
+  ports       Port[]
+
+  @@index([name])
+}
+
+model Hosting {
+  id              String   @id @default(cuid())
+  providerName    String
+  providerAccount String
+  priceYear       Decimal? @db.Decimal(10, 2) // Must be >= 0
+  paidAt          DateTime? // Must be valid ISO8601 date
+  currency        String?  @default("USD")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  instances       Instance[]
+
+  @@index([providerName])
+  @@index([paidAt])
+}
+
+model SiteInfo {
+  id           String   @id @default(cuid())
+  siteId       String   @unique
+  contacts     Json     // { phones: [str], emails: [str] }
+  meta         Json     // { fetched_by: str, fetched_at: ISO8601 }
+  sourceUrl    String?
+  rawJson      Json?
+
+  // Relations
+  site         Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+}
+
+// ============================================================================
+// JUNCTION TABLES
+// ============================================================================
+
+model InstancePort {
+  instanceId String
+  portId     String
+
+  // Relations
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  port       Port     @relation(fields: [portId], references: [id], onDelete: Cascade)
+
+  @@id([instanceId, portId])
+  @@index([portId])
+}
+
+// ============================================================================
+// AUDIT & USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  roleIds   String[] // Array of role IDs
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audits    Audit[]
+
+  @@index([email])
+  @@index([roleIds])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions Json?    // Array of permission strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Audit {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String   // CREATE, UPDATE, DELETE, etc.
+  resource   String   // Resource type (Site, Instance, etc.)
+  resourceId String   // ID of the affected resource
+  timestamp  DateTime @default(now())
+  details    Json?    // Additional context
+
+  // Relations
+  actor      User     @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([timestamp])
+}
+
+model Webhook {
+  id      String   @id @default(cuid())
+  url     String
+  events  String[] // Array of event types to listen for
+  secret  String?   // Optional webhook secret for verification
+  active  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([url])
+  @@index([events])
+}
+
+// ============================================================================
+// LEGACY MODEL (keeping existing enquiry functionality)
+// ============================================================================
 
 model Enquiry {
   id          String   @id @default(cuid())
