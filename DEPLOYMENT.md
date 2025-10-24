@@ -31,7 +31,14 @@ nano .env
 Add your production environment variables:
 ```bash
 DATABASE_URL="postgresql://user:password@localhost:5432/ms_backend"
+
+# CORS Configuration - Choose one option:
+# Option 1: Single origin (legacy)
 CORS_ORIGIN=https://yourdomain.com
+
+# Option 2: Multiple origins (comma-separated)
+CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com,https://admin.yourdomain.com
+
 PORT=3000
 NODE_ENV=production
 ```

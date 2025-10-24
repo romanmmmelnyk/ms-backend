@@ -27,11 +27,18 @@ npm install
 
 3. Set up environment variables:
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
-Edit `.env` and configure your database connection:
+Edit `.env` and configure your database connection and CORS origins:
 ```
 DATABASE_URL="postgresql://username:password@localhost:5432/ms_backend?schema=public"
+
+# CORS Configuration - Choose one option:
+# Option 1: Single origin (legacy)
+CORS_ORIGIN=https://yourdomain.com
+
+# Option 2: Multiple origins (comma-separated)
+CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com,http://localhost:3000
 ```
 
 4. Generate Prisma client:
